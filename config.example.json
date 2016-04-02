@@ -1,0 +1,8 @@
+{
+    "server":{
+        "host":"irc.twitch.tv",
+        "port":"",
+        "user":"",
+        "oauth":""
+    }
+}
