@@ -10,6 +10,8 @@ import (
 	"net/textproto"
 	"strings"
 	"time"
+
+	rethink "github.com/dancannon/gorethink"
 )
 
 // Globalonfig put together all configs
@@ -46,11 +48,10 @@ type Channel struct {
 
 // Message every message in chat
 type Message struct {
-	CreatedAt  time.Time
-	RawMessage string
-	Author     string
-	ChanName   string
-	Formated   string
+	CreatedAt time.Time `gorethink:"created_at"`
+	Author    string    `gorethink:"msg_author"`
+	ChanName  string    `gorethink:"channel_name"`
+	Formated  string    `gorethink:"formated_message"`
 }
 
 // ParseConfig read config file and return Config struct
@@ -94,7 +95,7 @@ func (c Channel) JoinChannel(out chan string) {
 
 // FormatMessage converts raw data to Message
 func formatMessage(raw string) (msg Message) {
-	msg = Message{CreatedAt: time.Now(), RawMessage: raw}
+	msg = Message{CreatedAt: time.Now()}
 	if strings.Contains(raw, "PRIVMSG") {
 		message := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")
 		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[0]
@@ -105,17 +106,30 @@ func formatMessage(raw string) (msg Message) {
 }
 
 // ConsumeData ouputed all data
-func ConsumeData(data chan string) {
+func ConsumeData(data chan string, db *rethink.Session) {
 	for i := range data {
+
 		msg := formatMessage(i)
-		fmt.Printf("%s@%s: %s \n", msg.ChanName, msg.Author, msg.Formated)
+		result, err := rethink.DB("Channels").Table("test").Insert(msg).RunWrite(session)
+		if err != nil {
+			log.Fatalf("error %s while inserting data %v \n", err, result.GeneratedKeys[0])
+		}
 	}
 }
+
+var session *rethink.Session
 
 func main() {
 	conf, err := ParseConfig("./config.json")
 	if err != nil {
 		log.Fatal(err)
+	}
+	session, err = rethink.Connect(rethink.ConnectOpts{
+		Address:  "localhost:28015",
+		Database: "Channels",
+	})
+	if err != nil {
+		log.Fatalln(err)
 	}
 	conn, err := InitConnect(*conf.Connect)
 	if err != nil {
@@ -127,5 +141,5 @@ func main() {
 		activeCh[k] = Channel{Conn: &conn, Config: v}
 		go activeCh[k].JoinChannel(data)
 	}
-	ConsumeData(data)
+	ConsumeData(data, session)
 }
