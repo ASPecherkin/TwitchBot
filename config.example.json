@@ -5,6 +5,10 @@
         "user": "test",
         "oauth": "set token here"
     },
+    "db": {
+        "host": "localhost",
+        "port": "28015"
+    },
     "user_cnf": {
         "nick": "nick_name"
     },

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -16,20 +17,27 @@ import (
 
 // Globalonfig put together all configs
 type Globalonfig struct {
-	Connect *ConnectConfig           `json:"connect"`
-	UserCnf *UserConfig              `json:"user_cnf"`
-	ChConfs map[string]ChannelConfig `json:"channels"`
+	Connect   *ConnectConfig `json:"connect"`
+	*DBConfig `json:"db"`
+	UserCnf   *UserConfig              `json:"user_cnf"`
+	ChConfs   map[string]ChannelConfig `json:"channels"`
+}
+
+// DBConfig settings for RethinkDb
+type DBConfig struct {
+	Host string `json:"host"`
+	Port string `json:"port"`
+}
+
+// UserConfig for nickname and other things
+type UserConfig struct {
+	NickName string `json:"nick"`
 }
 
 // ChannelConfig settigns for separate channel
 type ChannelConfig struct {
 	ChanName string `json:"name"`
 	URLs     bool   `json:"store_urls"`
-}
-
-// UserConfig for nickname and other things
-type UserConfig struct {
-	NickName string `json:"nick"`
 }
 
 // ConnectConfig settings for connecting to the twitch server
@@ -52,6 +60,7 @@ type Message struct {
 	Author    string    `gorethink:"msg_author"`
 	ChanName  string    `gorethink:"channel_name"`
 	Formated  string    `gorethink:"formated_message"`
+	HasURL    bool      `gorethink:"has_url"`
 }
 
 // ParseConfig read config file and return Config struct
@@ -85,9 +94,9 @@ func (c Channel) JoinChannel(out chan string) {
 	tp := textproto.NewReader(reader)
 	for {
 		line, err := tp.ReadLine()
-		if err != nil {
+		//TODO I have receive every 10-20 mins EOF, must think about it
+		if err != nil && err != io.EOF {
 			log.Fatalf("while read %s \n", err)
-			break
 		}
 		out <- line
 	}
@@ -95,12 +104,15 @@ func (c Channel) JoinChannel(out chan string) {
 
 // FormatMessage converts raw data to Message
 func formatMessage(raw string) (msg Message) {
-	msg = Message{CreatedAt: time.Now()}
+	msg = Message{CreatedAt: time.Now(), HasURL: false}
 	if strings.Contains(raw, "PRIVMSG") {
 		message := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")
 		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[0]
 		msg.Formated = strings.Split(message[1], " :")[1]
 		msg.ChanName = strings.Split(message[1], " :")[0]
+	}
+	if strings.Contains(msg.Formated, "http") {
+		msg.HasURL = true
 	}
 	return
 }
@@ -108,11 +120,12 @@ func formatMessage(raw string) (msg Message) {
 // ConsumeData ouputed all data
 func ConsumeData(data chan string, db *rethink.Session) {
 	for i := range data {
-
-		msg := formatMessage(i)
-		result, err := rethink.DB("Channels").Table("test").Insert(msg).RunWrite(session)
-		if err != nil {
-			log.Fatalf("error %s while inserting data %v \n", err, result.GeneratedKeys[0])
+		if !strings.Contains(i, "_bot") {
+			msg := formatMessage(i)
+			result, err := rethink.DB("Channels").Table("test").Insert(msg).RunWrite(session)
+			if err != nil {
+				log.Fatalf("error %s while inserting data %v \n", err, result.GeneratedKeys[0])
+			}
 		}
 	}
 }
@@ -125,7 +138,7 @@ func main() {
 		log.Fatal(err)
 	}
 	session, err = rethink.Connect(rethink.ConnectOpts{
-		Address:  "localhost:28015",
+		Address:  conf.DBConfig.Host + ":" + conf.DBConfig.Port,
 		Database: "Channels",
 	})
 	if err != nil {
