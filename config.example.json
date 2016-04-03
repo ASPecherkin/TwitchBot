@@ -1,8 +1,17 @@
 {
-    "server":{
-        "host":"irc.twitch.tv",
-        "port":"",
-        "user":"",
-        "oauth":""
+    "connect": {
+        "host": "irc.twitch.tv",
+        "port": "6667",
+        "user": "test",
+        "oauth": "set token here"
+    },
+    "user_cnf": {
+        "nick": "nick_name"
+    },
+    "channels": {
+        "test": {
+            "name": "test",
+            "store_urls": false
+        }
     }
 }
