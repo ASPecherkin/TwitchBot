@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/textproto"
+	"os"
 	"strings"
 	"time"
 
@@ -94,8 +94,13 @@ func (c Channel) JoinChannel(out chan string) {
 	tp := textproto.NewReader(reader)
 	for {
 		line, err := tp.ReadLine()
+		if strings.Contains(line, "PING") {
+			pong := strings.Split(line, "PING ")
+			fmt.Fprintf(*c.Conn, "PONG %s\r\n", pong[1])
+			continue
+		}
 		//TODO I have receive every 10-20 mins EOF, must think about it
-		if err != nil && err != io.EOF {
+		if err != nil {
 			log.Fatalf("while read %s \n", err)
 		}
 		out <- line
@@ -110,9 +115,12 @@ func formatMessage(raw string) (msg Message) {
 		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[0]
 		msg.Formated = strings.Split(message[1], " :")[1]
 		msg.ChanName = strings.Split(message[1], " :")[0]
-	}
-	if strings.Contains(msg.Formated, "http") {
-		msg.HasURL = true
+	} else {
+		if strings.Contains(msg.Formated, "http") {
+			msg.HasURL = true
+		} else {
+			fmt.Fprintln(os.Stderr, raw)
+		}
 	}
 	return
 }
