@@ -100,6 +100,7 @@ func (c Channel) JoinChannel(out chan string) {
 			continue
 		}
 		//TODO I have receive every 10-20 mins EOF, must think about it
+		// Find - Twitch sendns me PINg every ~10-15 mins PING and i musy answer it
 		if err != nil {
 			log.Fatalf("while read %s \n", err)
 		}
@@ -115,13 +116,13 @@ func formatMessage(raw string) (msg Message) {
 		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[0]
 		msg.Formated = strings.Split(message[1], " :")[1]
 		msg.ChanName = strings.Split(message[1], " :")[0]
-	} else {
 		if strings.Contains(msg.Formated, "http") {
 			msg.HasURL = true
-		} else {
-			fmt.Fprintln(os.Stderr, raw)
 		}
+	} else {
+		fmt.Fprintln(os.Stderr, raw)
 	}
+
 	return
 }
 
