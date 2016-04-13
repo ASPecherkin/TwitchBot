@@ -114,15 +114,19 @@ func formatMessage(raw string) (msg Message) {
 	if strings.Contains(raw, "PRIVMSG") {
 		message := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")
 		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[0]
-		msg.Formated = strings.Split(message[1], " :")[1]
-		msg.ChanName = strings.Split(message[1], " :")[0]
-		if strings.Contains(msg.Formated, "http") {
-			msg.HasURL = true
+		t := strings.Split(message[1], " :")
+		//TODO check why sometimes i haven't t[1]
+		if len(t) >= 2 {
+			msg.ChanName, msg.Formated = t[0], t[1]
+			if strings.Contains(msg.Formated, "http") {
+				msg.HasURL = true
+			}
+		} else {
+			msg.ChanName = t[0]
 		}
 	} else {
 		fmt.Fprintln(os.Stderr, raw)
 	}
-
 	return
 }
 
