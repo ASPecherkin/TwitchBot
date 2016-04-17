@@ -15,8 +15,8 @@ import (
 	rethink "github.com/dancannon/gorethink"
 )
 
-// Globalonfig put together all configs
-type Globalonfig struct {
+// GlobalConfig put together all configs
+type GlobalConfig struct {
 	Connect   *ConnectConfig `json:"connect"`
 	*DBConfig `json:"db"`
 	UserCnf   *UserConfig              `json:"user_cnf"`
@@ -64,7 +64,7 @@ type Message struct {
 }
 
 // ParseConfig read config file and return Config struct
-func ParseConfig(path string) (conf Globalonfig, err error) {
+func ParseConfig(path string) (conf GlobalConfig, err error) {
 	data, err := ioutil.ReadFile("./config.json")
 	if err != nil {
 		log.Fatalf("Couldn't read config file: %s  \n", err)
@@ -109,11 +109,12 @@ func (c Channel) JoinChannel(out chan string) {
 }
 
 // FormatMessage converts raw data to Message
+// raw message looks like :feikga!feikga@feikga.tmi.twitch.tv PRIVMSG #test :No?
 func formatMessage(raw string) (msg Message) {
 	msg = Message{CreatedAt: time.Now(), HasURL: false}
 	if strings.Contains(raw, "PRIVMSG") {
 		message := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")
-		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[0]
+		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[1]
 		t := strings.Split(message[1], " :")
 		//TODO check why sometimes i haven't t[1]
 		if len(t) >= 2 {
