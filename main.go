@@ -61,6 +61,7 @@ type Message struct {
 	ChanName  string    `gorethink:"channel_name"`
 	Formated  string    `gorethink:"formated_message"`
 	HasURL    bool      `gorethink:"has_url"`
+	RawMsg    string    `gorethink:"raw_msg"`
 }
 
 // ParseConfig read config file and return Config struct
@@ -96,7 +97,7 @@ func (c Channel) JoinChannel(out chan string) {
 		line, err := tp.ReadLine()
 		if strings.Contains(line, "PING") {
 			pong := strings.Split(line, "PING ")
-			fmt.Fprintf(*c.Conn, "PONG %s\r\n", pong[1])
+			fmt.Fprintf(*c.Conn, "PONG %s\r\n", pong[0])
 			continue
 		}
 		//TODO I have receive every 10-20 mins EOF, must think about it
@@ -111,10 +112,10 @@ func (c Channel) JoinChannel(out chan string) {
 // FormatMessage converts raw data to Message
 // raw message looks like :feikga!feikga@feikga.tmi.twitch.tv PRIVMSG #test :No?
 func formatMessage(raw string) (msg Message) {
-	msg = Message{CreatedAt: time.Now(), HasURL: false}
+	msg = Message{CreatedAt: time.Now(), HasURL: false, RawMsg: raw}
 	if strings.Contains(raw, "PRIVMSG") {
 		message := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")
-		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[1]
+		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[0]
 		t := strings.Split(message[1], " :")
 		//TODO check why sometimes i haven't t[1]
 		if len(t) >= 2 {
