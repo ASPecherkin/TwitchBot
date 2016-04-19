@@ -109,22 +109,33 @@ func (c Channel) JoinChannel(out chan string) {
 	}
 }
 
+func stringBetweenChars(text, f, l string) (between string) {
+	first, last := strings.IndexAny(text, f), strings.IndexAny(text, l)
+	if first == -1 || last == -1 {
+		return
+	}
+	between = text[first:last-1]
+	return
+}
+
 // FormatMessage converts raw data to Message
 // raw message looks like :feikga!feikga@feikga.tmi.twitch.tv PRIVMSG #test :No?
 func formatMessage(raw string) (msg Message) {
+	defer func() {
+		if p := recover(); p != nil {
+			log.Printf("Error : %v \n with message: %s \n ", p, raw)
+		}
+	}()
 	msg = Message{CreatedAt: time.Now(), HasURL: false, RawMsg: raw}
 	if strings.Contains(raw, "PRIVMSG") {
-		message := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")
-		msg.Author = strings.Split(strings.Split(message[0], "@")[0], "!")[0]
-		t := strings.Split(message[1], " :")
-		//TODO check why sometimes i haven't t[1]
-		if len(t) >= 2 {
-			msg.ChanName, msg.Formated = t[0], t[1]
-			if strings.Contains(msg.Formated, "http") {
-				msg.HasURL = true
-			}
-		} else {
-			msg.ChanName = t[0]
+		info := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")[0]
+		message := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")[1]
+		msg.Author = stringBetweenChars(info, ":", "!")
+		msg.ChanName = stringBetweenChars(message, "#", ":")
+		msgBegins := strings.IndexAny(message, ":")
+		msg.Formated = message[msgBegins:]
+		if strings.Contains(msg.Formated, "http") {
+			msg.HasURL = true
 		}
 	} else {
 		fmt.Fprintln(os.Stderr, raw)
