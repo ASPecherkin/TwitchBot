@@ -112,7 +112,8 @@ func (c Channel) JoinChannel(out chan Message) {
 }
 
 func stringBetweenChars(text, f, l string) (between string) {
-	first, last := strings.IndexAny(text, f), strings.IndexAny(text, l)
+	first := strings.IndexAny(text, f)
+	last := strings.IndexAny(text[first:], l)
 	if first == -1 || last == -1 {
 		return
 	}
