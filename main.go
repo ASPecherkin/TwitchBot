@@ -89,8 +89,9 @@ func InitConnect(cfg ConnectConfig) (conn net.Conn, err error) {
 }
 
 // JoinChannel join specific channel with given nick
-func (c Channel) JoinChannel(out chan string) {
+func (c Channel) JoinChannel(out chan Message) {
 	fmt.Fprintf(*c.Conn, "JOIN %s\r\n", "#"+c.Config.ChanName)
+
 	reader := bufio.NewReader(*c.Conn)
 	tp := textproto.NewReader(reader)
 	for {
@@ -101,11 +102,12 @@ func (c Channel) JoinChannel(out chan string) {
 			continue
 		}
 		//TODO I have receive every 10-20 mins EOF, must think about it
-		// Find - Twitch sendns me PINg every ~10-15 mins PING and i musy answer it
+		// Find - Twitch sendns me PING's every ~10-15 mins PING and i musy answer it
 		if err != nil {
 			log.Fatalf("while read %s \n", err)
 		}
-		out <- line
+		msg := Message{RawMsg: line, ChanName: c.Config.ChanName, CreatedAt: time.Now()}
+		out <- msg
 	}
 }
 
@@ -114,41 +116,37 @@ func stringBetweenChars(text, f, l string) (between string) {
 	if first == -1 || last == -1 {
 		return
 	}
-	between = text[first:last-1]
+	between = text[first+1 : last]
 	return
 }
 
 // FormatMessage converts raw data to Message
 // raw message looks like :feikga!feikga@feikga.tmi.twitch.tv PRIVMSG #test :No?
-func formatMessage(raw string) (msg Message) {
+func formatMessage(input *Message) {
 	defer func() {
 		if p := recover(); p != nil {
-			log.Printf("Error : %v \n with message: %s \n ", p, raw)
+			log.Printf("Error : %v \n with message: %s \n ", p, input.RawMsg)
 		}
 	}()
-	msg = Message{CreatedAt: time.Now(), HasURL: false, RawMsg: raw}
-	if strings.Contains(raw, "PRIVMSG") {
-		info := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")[0]
-		message := strings.Split(raw, ".tmi.twitch.tv PRIVMSG #")[1]
-		msg.Author = stringBetweenChars(info, ":", "!")
-		msg.ChanName = stringBetweenChars(message, "#", ":")
-		msgBegins := strings.IndexAny(message, ":")
-		msg.Formated = message[msgBegins:]
-		if strings.Contains(msg.Formated, "http") {
-			msg.HasURL = true
+	if strings.Contains(input.RawMsg, "PRIVMSG") {
+		info := strings.Split(input.RawMsg, ".tmi.twitch.tv PRIVMSG #"+input.ChanName+" :")[0]
+		message := strings.Split(input.RawMsg, ".tmi.twitch.tv PRIVMSG #"+input.ChanName+" :")[1]
+		input.Author = stringBetweenChars(info, ":", "!")
+		input.Formated = message
+		if strings.Contains(input.Formated, "http") {
+			input.HasURL = true
 		}
 	} else {
-		fmt.Fprintln(os.Stderr, raw)
+		fmt.Fprintln(os.Stderr, input.RawMsg)
 	}
-	return
 }
 
 // ConsumeData ouputed all data
-func ConsumeData(data chan string, db *rethink.Session) {
+func ConsumeData(data chan Message, db *rethink.Session) {
 	for i := range data {
-		if !strings.Contains(i, "_bot") {
-			msg := formatMessage(i)
-			result, err := rethink.DB("Channels").Table("test").Insert(msg).RunWrite(session)
+		if !strings.Contains(i.RawMsg, "_bot") {
+			formatMessage(&i)
+			result, err := rethink.DB("Channels").Table("test").Insert(&i).RunWrite(session)
 			if err != nil {
 				log.Fatalf("error %s while inserting data %v \n", err, result.GeneratedKeys[0])
 			}
@@ -175,7 +173,7 @@ func main() {
 		log.Fatal(err)
 	}
 	activeCh := make(map[string]Channel, len(conf.ChConfs))
-	data := make(chan string, 3*len(conf.ChConfs))
+	data := make(chan Message, 3*len(conf.ChConfs))
 	for k, v := range conf.ChConfs {
 		activeCh[k] = Channel{Conn: &conn, Config: v}
 		go activeCh[k].JoinChannel(data)
