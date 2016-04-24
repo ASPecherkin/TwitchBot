@@ -123,7 +123,7 @@ func stringBetweenChars(text, f, l string) (between string) {
 
 // FormatMessage converts raw data to Message
 // raw message looks like :feikga!feikga@feikga.tmi.twitch.tv PRIVMSG #test :No?
-func formatMessage(input *Message) {
+func FormatMessage(input *Message) {
 	defer func() {
 		if p := recover(); p != nil {
 			log.Printf("Error : %v \n with message: %s \n ", p, input.RawMsg)
@@ -146,10 +146,10 @@ func formatMessage(input *Message) {
 func ConsumeData(data chan Message, db *rethink.Session) {
 	for i := range data {
 		if !strings.Contains(i.RawMsg, "_bot") {
-			formatMessage(&i)
+			FormatMessage(&i)
 			result, err := rethink.DB("Channels").Table("test").Insert(&i).RunWrite(session)
 			if err != nil {
-				log.Fatalf("error %s while inserting data %v \n", err, result.GeneratedKeys[0])
+				log.Fatalf("error %s while inserting data %v \n", err, result.GeneratedKeys)
 			}
 		}
 	}
