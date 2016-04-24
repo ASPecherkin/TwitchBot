@@ -9,8 +9,11 @@ import (
 	"net"
 	"net/textproto"
 	"os"
+	"runtime/pprof"
 	"strings"
 	"time"
+
+	"flag"
 
 	rethink "github.com/dancannon/gorethink"
 )
@@ -156,11 +159,29 @@ func ConsumeData(data chan Message, db *rethink.Session) {
 }
 
 var session *rethink.Session
+var cpuprofile = flag.String("cpup", "", "write cpu profile to file")
+var memprofile = flag.String("memp", "", "write mem profile to file")
 
 func main() {
 	conf, err := ParseConfig("./config.json")
 	if err != nil {
 		log.Fatal(err)
+	}
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			fmt.Println("Error: ", err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			fmt.Println("Error: ", err)
+		}
+		pprof.WriteHeapProfile(f)
 	}
 	session, err = rethink.Connect(rethink.ConnectOpts{
 		Address:  conf.DBConfig.Host + ":" + conf.DBConfig.Port,
@@ -175,6 +196,7 @@ func main() {
 	}
 	activeCh := make(map[string]Channel, len(conf.ChConfs))
 	data := make(chan Message, 3*len(conf.ChConfs))
+	defer close(data)
 	for k := range conf.ChConfs {
 		activeCh[k] = Channel{Conn: &conn, Config: conf.ChConfs[k]}
 		go activeCh[k].JoinChannel(data)
