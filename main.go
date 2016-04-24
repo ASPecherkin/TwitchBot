@@ -91,7 +91,6 @@ func InitConnect(cfg ConnectConfig) (conn net.Conn, err error) {
 // JoinChannel join specific channel with given nick
 func (c Channel) JoinChannel(out chan Message) {
 	fmt.Fprintf(*c.Conn, "JOIN %s\r\n", "#"+c.Config.ChanName)
-
 	reader := bufio.NewReader(*c.Conn)
 	tp := textproto.NewReader(reader)
 	for {
@@ -101,19 +100,19 @@ func (c Channel) JoinChannel(out chan Message) {
 			fmt.Fprintf(*c.Conn, "PONG %s\r\n", pong[0])
 			continue
 		}
-		//TODO I have receive every 10-20 mins EOF, must think about it
-		// Find - Twitch sendns me PING's every ~10-15 mins PING and i musy answer it
+		//Twitch sendns me PING's every ~10-15 mins PING and i musy answer it
 		if err != nil {
 			log.Fatalf("while read %s \n", err)
 		}
-		msg := Message{RawMsg: line, ChanName: c.Config.ChanName, CreatedAt: time.Now()}
+		// fmt.Println(c.Config.ChanName)
+		msg := Message{RawMsg: line, CreatedAt: time.Now()}
 		out <- msg
 	}
 }
 
 func stringBetweenChars(text, f, l string) (between string) {
 	first := strings.IndexAny(text, f)
-	last := strings.IndexAny(text[first:], l)
+	last := strings.IndexAny(text[first:], l) + first
 	if first == -1 || last == -1 {
 		return
 	}
@@ -130,6 +129,7 @@ func FormatMessage(input *Message) {
 		}
 	}()
 	if strings.Contains(input.RawMsg, "PRIVMSG") {
+		input.ChanName = stringBetweenChars(input.RawMsg, "#", " :")
 		info := strings.Split(input.RawMsg, ".tmi.twitch.tv PRIVMSG #"+input.ChanName+" :")[0]
 		message := strings.Split(input.RawMsg, ".tmi.twitch.tv PRIVMSG #"+input.ChanName+" :")[1]
 		input.Author = stringBetweenChars(info, ":", "!")
@@ -175,8 +175,8 @@ func main() {
 	}
 	activeCh := make(map[string]Channel, len(conf.ChConfs))
 	data := make(chan Message, 3*len(conf.ChConfs))
-	for k, v := range conf.ChConfs {
-		activeCh[k] = Channel{Conn: &conn, Config: v}
+	for k := range conf.ChConfs {
+		activeCh[k] = Channel{Conn: &conn, Config: conf.ChConfs[k]}
 		go activeCh[k].JoinChannel(data)
 	}
 	ConsumeData(data, session)
